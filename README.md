@@ -1,30 +1,30 @@
 # Multi-Agent Accounting System
 
-Sistem multi-agent pentru procesare automată de documente contabile — clasificare, propunere de contare și validare, construit ca proiect de disertație și MVP pentru un produs real.
+A multi-agent system for automated accounting document processing — classification, accounting entry proposal, and validation, developed as both a dissertation project and an MVP for a real-world product.
 
-## De ce acest proiect
+## Why This Project
 
-Cabinetele de contabilitate mici/mijlocii din România pierd timp semnificativ pe introducerea manuală a documentelor și pe verificarea erorilor de contare. Acest sistem automatizează procesarea documentelor (facturi, bonuri fiscale, extrase bancare) printr-un pipeline de agenți specializați, cu verificare încrucișată automată — nu doar generare de contări, ci și detectarea erorilor înainte ca acestea să ajungă la contabil.
+Small and medium-sized accounting firms in Romania spend significant time on manually entering documents and checking accounting entry errors. This system automates the processing of accounting documents (invoices, receipts, bank statements) through a pipeline of specialized agents with automated cross-validation — not just generating accounting entries, but also detecting errors before they reach the accountant.
 
-## Arhitectură
+## Architecture
 
-Sistemul folosește un **orchestrator** care coordonează agenți specializați, fiecare cu o responsabilitate clară:
+The system uses an **orchestrator** that coordinates specialized agents, each with a clearly defined responsibility:
 
 ```
-Document (PDF/imagine)
+Document (PDF/image)
         |
         v
 +--------------------+
-|  Agent 1:          |  Extrage si clasifica documentul
-|  Classifier         |  (tip document, furnizor, sume, TVA)
+|  Agent 1:          |  Extracts and classifies the document
+|  Classifier         |  (document type, supplier, amounts, VAT)
 +---------+----------+
           |
           v
-   Document tranzactional?
+   Transactional document?
      |              |
-     v da            v nu
+     v yes          v no
 +--------------------+   status: classified_only
-|  Agent 2:          |   (rapoarte, bilanturi etc.)
+|  Agent 2:          |   (reports, balance sheets, etc.)
 |  Accounting        |
 |  Proposer          |<-------+
 +---------+----------+        |
@@ -32,66 +32,66 @@ Document (PDF/imagine)
           v                    |
 +--------------------+         |
 |  Agent 3:          |---------+
-|  Validator          |  daca gaseste erori,
-+---------+----------+  reincearca (max 2x)
+|  Validator          |  if errors are found,
++---------+----------+  retry (max 2 times)
           |
           v
    status: validated / needs_review
 ```
 
-### Agenți
+## Agents
 
-| Agent                   | Rol                                                                                             | Input                    | Output                                 |
-| ----------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------- |
-| **Document Classifier** | Extrage date structurate din document (PDF/imagine, cu vision)                                  | Fișierul documentului    | Tip document, furnizor, CUI, sumă, TVA |
-| **Accounting Proposer** | Propune înregistrarea contabilă (linii debit/credit)                                            | Date extrase + CUI firmă | Linii contabile propuse                |
-| **Validator**           | Verifică balanța, coerența conturilor, plauzibilitatea TVA — fără LLM, doar reguli deterministe | Propunerea de contare    | Flag-uri de eroare, status             |
+| Agent                   | Role                                                                                                                 | Input                       | Output                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------ |
+| **Document Classifier** | Extracts structured data from documents (PDF/images, using vision capabilities)                                      | Document file               | Document type, supplier, company ID, amount, VAT |
+| **Accounting Proposer** | Proposes accounting entries (debit/credit lines)                                                                     | Extracted data + company ID | Proposed accounting lines                        |
+| **Validator**           | Checks balance correctness, account consistency, and VAT plausibility — using deterministic rules only, without LLMs | Proposed accounting entry   | Error flags, validation status                   |
 
-Orchestratorul rulează o **buclă de corecție**: dacă `Validator` găsește probleme, propunerea e retrimisă la `Accounting Proposer` cu feedback explicit despre ce trebuie corectat, până la 2 reîncercări.
+The orchestrator runs a **correction loop**: if the `Validator` detects issues, the proposal is sent back to the `Accounting Proposer` together with explicit feedback about what needs to be corrected, for up to 2 retry attempts.
 
-## Stack tehnic
+## Technical Stack
 
 - **Backend**: Python, FastAPI
-- **Bază de date**: PostgreSQL, SQLAlchemy (ORM), Alembic (migrații)
-- **AI**: OpenAI API (`gpt-4o` / `gpt-4o-mini`) cu Structured Outputs (JSON Schema)
-- **Infrastructură**: Docker Compose (PostgreSQL local)
+- **Database**: PostgreSQL, SQLAlchemy (ORM), Alembic (migrations)
+- **AI**: OpenAI API (`gpt-4o` / `gpt-4o-mini`) with Structured Outputs (JSON Schema)
+- **Infrastructure**: Docker Compose (local PostgreSQL)
 
-## Structura proiectului
+## Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── main.py                  # entry point FastAPI
-│   ├── config.py                # configurare (variabile de mediu)
-│   ├── orchestrator/            # orchestrare: state + graf de decizie
-│   ├── agents/                  # agenti: classifier, proposer, validator
-│   ├── ml/                      # modele ML (detectare anomalii - in lucru)
-│   ├── llm/                     # client OpenAI, prompturi
-│   ├── models/                  # modele SQLAlchemy (DB)
-│   ├── schemas/                 # scheme Pydantic (request/response)
-│   ├── api/                     # endpoint-uri FastAPI
-│   └── db/                      # sesiune DB, migratii Alembic
+│   ├── main.py                  # FastAPI entry point
+│   ├── config.py                # configuration (environment variables)
+│   ├── orchestrator/            # orchestration: state + decision graph
+│   ├── agents/                  # agents: classifier, proposer, validator
+│   ├── ml/                      # ML models (anomaly detection - in progress)
+│   ├── llm/                     # OpenAI client, prompts
+│   ├── models/                  # SQLAlchemy database models
+│   ├── schemas/                 # Pydantic request/response schemas
+│   ├── api/                     # FastAPI endpoints
+│   └── db/                      # database session, Alembic migrations
 ├── requirements.txt
 └── .env.example
 ```
 
-## Setup local
+## Local Setup
 
-### Cerințe
+### Requirements
 
 - Python 3.11+
 - Docker Desktop
 
-### Pași
+### Steps
 
-**1. Clonează repo-ul și intră în `backend/`**
+**1. Clone the repository and navigate to `backend/`**
 
 ```bash
 git clone <repo-url>
 cd backend
 ```
 
-**2. Creează mediul virtual și instalează dependențele**
+**2. Create a virtual environment and install dependencies**
 
 ```bash
 python -m venv venv
@@ -101,64 +101,64 @@ venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 ```
 
-**3. Configurează variabilele de mediu**
+**3. Configure environment variables**
 
-Copiază `.env.example` în `.env` și completează valorile reale:
+Copy `.env.example` to `.env` and fill in the actual values:
 
 ```bash
 cp .env.example .env
 ```
 
-Ai nevoie de o cheie API OpenAI (`OPENAI_API_KEY`).
+An OpenAI API key (`OPENAI_API_KEY`) is required.
 
-**4. Pornește baza de date**
+**4. Start the database**
 
 ```bash
 docker compose up -d
 ```
 
-**5. Rulează migrațiile**
+**5. Run database migrations**
 
 ```bash
 alembic upgrade head
 ```
 
-**6. Pornește serverul**
+**6. Start the server**
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-API-ul e disponibil la `http://localhost:8000`, documentația interactivă la `http://localhost:8000/docs`.
+The API is available at `http://localhost:8000`, with interactive documentation at `http://localhost:8000/docs`.
 
-## Endpoint-uri principale
+## Main Endpoints
 
-| Metodă | Endpoint                           | Descriere                                                      |
-| ------ | ---------------------------------- | -------------------------------------------------------------- |
-| `GET`  | `/health`                          | Verificare status server                                       |
-| `POST` | `/documents/upload`                | Încarcă un document (PDF/imagine)                              |
-| `GET`  | `/documents/`                      | Listează documentele                                           |
-| `POST` | `/documents/{id}/classify`         | Rulează pipeline-ul complet (clasificare → contare → validare) |
-| `GET`  | `/review/pending`                  | Listează documentele care necesită verificare manuală          |
-| `POST` | `/review/{transaction_id}/approve` | Aprobă o contare propusă                                       |
-| `POST` | `/review/{transaction_id}/reject`  | Respinge o contare propusă                                     |
+| Method | Endpoint                           | Description                                                           |
+| ------ | ---------------------------------- | --------------------------------------------------------------------- |
+| `GET`  | `/health`                          | Server health check                                                   |
+| `POST` | `/documents/upload`                | Uploads a document (PDF/image)                                        |
+| `GET`  | `/documents/`                      | Lists documents                                                       |
+| `POST` | `/documents/{id}/classify`         | Runs the complete pipeline (classification → accounting → validation) |
+| `GET`  | `/review/pending`                  | Lists documents requiring manual review                               |
+| `POST` | `/review/{transaction_id}/approve` | Approves a proposed accounting entry                                  |
+| `POST` | `/review/{transaction_id}/reject`  | Rejects a proposed accounting entry                                   |
 
-## Status curent / roadmap
+## Current Status / Roadmap
 
-- [x] Extragere și clasificare documente (PDF + imagini)
-- [x] Propunere de contare cu direcție corectă (venit/cheltuială)
-- [x] Validare automată (balanță, coerență conturi, TVA plauzibil)
-- [x] Buclă de corecție între validator și proposer
-- [x] Coadă de aprobare (backend)
-- [ ] Frontend (React) peste coada de aprobare
-- [ ] Agent de detectare anomalii (ML, scikit-learn)
-- [ ] Validare CUI prin API ANAF
-- [ ] Agent conversațional (chat peste datele procesate)
+- [x] Document extraction and classification (PDF + images)
+- [x] Accounting entry proposal with correct direction (revenue/expense)
+- [x] Automated validation (balance, account consistency, plausible VAT)
+- [x] Correction loop between validator and proposer
+- [x] Approval queue (backend)
+- [ ] Frontend (React) on top of the approval queue
+- [ ] ML anomaly detection agent (scikit-learn)
+- [ ] Company ID validation through ANAF API
+- [ ] Conversational agent (chat interface over processed data)
 
-## Context academic
+## Academic Context
 
-Acest proiect e dezvoltat ca parte a unei disertații despre sisteme multi-agent aplicate în contabilitate, cu accent pe:
+This project is developed as part of a dissertation focused on multi-agent systems applied to accounting, with emphasis on:
 
-- Orchestrare cu dependențe condiționate (nu toți agenții rulează pentru orice document)
-- Verificare încrucișată automată între agenți, ca alternativă la validarea manuală completă
-- Bucle de feedback/corecție între agenți, nu doar pipeline liniar
+- Conditional dependency-based orchestration (not all agents run for every document)
+- Automated cross-validation between agents as an alternative to fully manual verification
+- Feedback and correction loops between agents, rather than a simple linear pipeline
