@@ -49,7 +49,7 @@ class ValidatorAgent(Agent):
                     f"Rata TVA neobisnuita: {rata_calculata}% (suma_totala={suma_totala}, tva={tva})"
                 )
 
-        # 4. Fiecare cont are exact codul numeric așteptat (siguranță suplimentară)
+        # 4. Conturi valide (doar numeric)
         for l in linii:
             if not l["cont"].isdigit():
                 flags.append(f"Cont invalid (nu e numeric): {l['cont']}")

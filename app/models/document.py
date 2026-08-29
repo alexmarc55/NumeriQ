@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, ForeignKey, DateTime, func
+from sqlalchemy import String, ForeignKey, DateTime, func, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
@@ -13,3 +13,7 @@ class Document(Base):
     status: Mapped[str] = mapped_column(String(50), default="uploaded")     # uploaded / classified / approved / rejected
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     transactions: Mapped[list["Transaction"]] = relationship(backref="document")
+
+    supplier: Mapped[str | None] = mapped_column(String(255), nullable=True)  # completed by Agent 1
+    document_date: Mapped[Date | None] = mapped_column(Date, nullable=True)  # completed by Agent 1
+    total_amount: Mapped[float | None] = mapped_column(nullable=True)  # completed by Agent 1

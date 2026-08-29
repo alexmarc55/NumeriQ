@@ -8,6 +8,7 @@ from app.schemas.document import DocumentResponse
 from app.models.company import Company
 from app.orchestrator.graph import Orchestrator
 from app.models.transaction import Transaction, TransactionLine
+import datetime
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -78,6 +79,11 @@ def classify(document_id: int, db: Session = Depends(get_db)):
 
     doc.doc_type = result_state.doc_type
     doc.status = result_state.status
+
+    doc.supplier = result_state.extracted_data.get("furnizor")
+    doc.total_amount = result_state.extracted_data.get("suma_totala")
+    doc.document_date = datetime.strptime(result_state.extracted_data["data_document"], "%d.%m.%Y").date() if result_state.extracted_data.get("data_document") else None
+
     db.commit()
     db.refresh(doc)
     return doc

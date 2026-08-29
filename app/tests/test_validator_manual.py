@@ -24,7 +24,6 @@ result = validator.run(state)
 print(result.status)
 print(result.validation_flags)
 
-# continuare la test_validator_manual.py, după ce ai result.validation_flags
 state.retry_context = result.validation_flags
 
 from app.agents.accounting_proposer import AccountingProposerAgent
