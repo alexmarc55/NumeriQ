@@ -3,6 +3,7 @@ from sqlalchemy import func, tuple_
 from app.models.transaction import Transaction, TransactionLine
 from app.models.document import Document
 from app.ml.anomaly_model import detect_anomalies
+import pandas as pd
 
 
 def run_anomaly_detection(db: Session, company_id: int) -> list[dict]:
@@ -67,3 +68,69 @@ def find_duplicates(db: Session, company_id: int) -> list[dict]:
         })
 
     return result
+
+def calculate_z_score(db: Session, company_id: int) -> list[dict]:
+    rows = (
+        db.query(Document.id, Document.supplier, Document.total_amount)
+        .filter(
+            Document.company_id == company_id,
+            Document.supplier.isnot(None),
+            Document.total_amount.isnot(None)
+        )
+        .all()
+    )
+
+    if not rows:
+        return []
+
+    result = []
+    for row in rows:
+        result.append({
+            "document_id": row.id,
+            "supplier": row.supplier,
+            "total_amount": float(row.total_amount),
+        })
+
+    df = pd.DataFrame(result)
+
+    df["supplier_mean"] = df.groupby("supplier")["total_amount"].transform("mean")
+    df["supplier_std"] = df.groupby("supplier")["total_amount"].transform("std")
+    df["supplier_count"] = df.groupby("supplier")["total_amount"].transform("count")
+
+    df = df[~df["supplier_std"].isna() & (df["supplier_std"] != 0) & (df["supplier_count"] > 5)]
+
+    if df.empty:
+        return []
+
+    df["z_score"] = (df["total_amount"] - df["supplier_mean"]) / df["supplier_std"]
+
+    df["is_anomaly"] = df["z_score"].abs() > 2.5
+
+    return df.to_dict(orient="records")
+
+def check_new_suppliers(db: Session, company_id: int) -> list[dict]:
+    rows = (
+        db.query(Document.id, Document.supplier, Document.document_date)
+        .filter(Document.company_id == company_id,
+                Document.supplier.isnot(None), 
+                Document.document_date.isnot(None))
+        .all()
+    )
+
+    if not rows:
+        return []
+
+    result = []
+    for row in rows:
+        result.append({
+            "document_id": row.id,
+            "supplier": row.supplier,
+            "document_date": row.document_date,
+        })
+
+    df = pd.DataFrame(result)
+
+    df["supplier_first_date"] = df.groupby("supplier")["document_date"].transform("min")
+    df["is_new_supplier"] = df["document_date"] == df["supplier_first_date"]
+
+    return df.to_dict(orient="records")

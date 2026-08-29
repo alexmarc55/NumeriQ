@@ -1,5 +1,5 @@
 from app.db.session import SessionLocal
-from app.agents.anomaly_detector import find_duplicates   # sau unde ai pus funcția
+from app.agents.anomaly_detector import find_duplicates
 
 
 print("Testing find_duplicates function...")

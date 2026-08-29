@@ -4,7 +4,7 @@ from app.db.session import get_db
 from app.models.document import Document
 from app.models.transaction import Transaction
 from app.schemas.review import ReviewItem
-from backend.app.agents.anomaly_detector import run_anomaly_detection
+from backend.app.agents.anomaly_detector import run_anomaly_detection, find_duplicates, calculate_z_score, check_new_suppliers
 
 router = APIRouter(prefix="/review", tags=["review"])
 
@@ -58,7 +58,12 @@ def reject(transaction_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "rejected", "document_id": doc.id}
 
-@router.get("/anomalies/{company_id}")
+@router.get("/anomaly/{company_id}")
 def get_anomalies(company_id: int, db: Session = Depends(get_db)):
-    results = run_anomaly_detection(db, company_id)
-    return [r for r in results if r.get("is_anomaly")]
+    anomalies = run_anomaly_detection(db, company_id)
+    duplicates = find_duplicates(db, company_id)
+    z_scores = calculate_z_score(db, company_id)
+    new_suppliers = check_new_suppliers(db, company_id)
+
+    result = {"anomalies": [r for r in anomalies if r.get("is_anomaly")], "duplicates": duplicates, "z_scores": [z for z in z_scores if z.get("is_anomaly")], "new_suppliers": new_suppliers}
+    return result

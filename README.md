@@ -39,6 +39,8 @@ Document (PDF/image)
    status: validated / needs_review
 ```
 
+Independently of the per-document pipeline above, an **anomaly detection layer** runs across a company's accumulated documents (not on a single document), surfacing patterns a human reviewer should double-check.
+
 ## Agents
 
 | Agent                   | Role                                                                                                                 | Input                       | Output                                           |
@@ -49,11 +51,22 @@ Document (PDF/image)
 
 The orchestrator runs a **correction loop**: if the `Validator` detects issues, the proposal is sent back to the `Accounting Proposer` together with explicit feedback about what needs to be corrected, for up to 2 retry attempts.
 
+## Anomaly Detection
+
+Runs across all of a company's documents, independent of the per-document pipeline. No LLM involved — purely deterministic SQL queries and statistics, chosen for interpretability and to keep behavior predictable for financial data.
+
+| Method                     | What it flags                                            | Approach                                                                                                     |
+| -------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Duplicate detection**    | Multiple documents with the same supplier and amount     | SQL `GROUP BY` + `HAVING count > 1`                                                                          |
+| **Z-score per supplier**   | An amount unusually far from a supplier's typical amount | pandas `groupby().transform()`, excluding suppliers with too little history (< 5 documents) or zero variance |
+| **New supplier detection** | The first document ever received from a given supplier   | pandas `groupby().transform("min")` on document date                                                         |
+
 ## Technical Stack
 
 - **Backend**: Python, FastAPI
 - **Database**: PostgreSQL, SQLAlchemy (ORM), Alembic (migrations)
 - **AI**: OpenAI API (`gpt-4o` / `gpt-4o-mini`) with Structured Outputs (JSON Schema)
+- **Data analysis**: pandas
 - **Infrastructure**: Docker Compose (local PostgreSQL)
 
 ## Project Structure
@@ -64,11 +77,12 @@ backend/
 │   ├── main.py                  # FastAPI entry point
 │   ├── config.py                # configuration (environment variables)
 │   ├── orchestrator/            # orchestration: state + decision graph
-│   ├── agents/                  # agents: classifier, proposer, validator
-│   ├── ml/                      # ML models (anomaly detection - in progress)
+│   ├── agents/                  # agents: classifier, proposer, validator, anomaly_detector
+│   ├── ml/                      # anomaly detection logic (duplicates, z-score, new suppliers)
 │   ├── llm/                     # OpenAI client, prompts
 │   ├── models/                  # SQLAlchemy database models
 │   ├── schemas/                 # Pydantic request/response schemas
+│   ├── tests/                   # Py tests
 │   ├── api/                     # FastAPI endpoints
 │   └── db/                      # database session, Alembic migrations
 ├── requirements.txt
@@ -133,15 +147,16 @@ The API is available at `http://localhost:8000`, with interactive documentation 
 
 ## Main Endpoints
 
-| Method | Endpoint                           | Description                                                           |
-| ------ | ---------------------------------- | --------------------------------------------------------------------- |
-| `GET`  | `/health`                          | Server health check                                                   |
-| `POST` | `/documents/upload`                | Uploads a document (PDF/image)                                        |
-| `GET`  | `/documents/`                      | Lists documents                                                       |
-| `POST` | `/documents/{id}/classify`         | Runs the complete pipeline (classification → accounting → validation) |
-| `GET`  | `/review/pending`                  | Lists documents requiring manual review                               |
-| `POST` | `/review/{transaction_id}/approve` | Approves a proposed accounting entry                                  |
-| `POST` | `/review/{transaction_id}/reject`  | Rejects a proposed accounting entry                                   |
+| Method | Endpoint                           | Description                                                                              |
+| ------ | ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| `GET`  | `/health`                          | Server health check                                                                      |
+| `POST` | `/documents/upload`                | Uploads a document (PDF/image)                                                           |
+| `GET`  | `/documents/`                      | Lists documents                                                                          |
+| `POST` | `/documents/{id}/classify`         | Runs the complete pipeline (classification → accounting → validation)                    |
+| `GET`  | `/review/pending`                  | Lists documents requiring manual review                                                  |
+| `POST` | `/review/{transaction_id}/approve` | Approves a proposed accounting entry                                                     |
+| `POST` | `/review/{transaction_id}/reject`  | Rejects a proposed accounting entry                                                      |
+| `GET`  | `/anomaly/{company_id}`            | Lists detected anomalies for a company (duplicates, statistical outliers, new suppliers) |
 
 ## Current Status / Roadmap
 
@@ -150,8 +165,9 @@ The API is available at `http://localhost:8000`, with interactive documentation 
 - [x] Automated validation (balance, account consistency, plausible VAT)
 - [x] Correction loop between validator and proposer
 - [x] Approval queue (backend)
+- [x] Anomaly detection: duplicates, per-supplier z-score, new suppliers
 - [ ] Frontend (React) on top of the approval queue
-- [ ] ML anomaly detection agent (scikit-learn)
+- [x] ML-based anomaly detection (Isolation Forest, scikit-learn) as a complement to the statistical methods
 - [ ] Company ID validation through ANAF API
 - [ ] Conversational agent (chat interface over processed data)
 
@@ -162,3 +178,4 @@ This project is developed as part of a dissertation focused on multi-agent syste
 - Conditional dependency-based orchestration (not all agents run for every document)
 - Automated cross-validation between agents as an alternative to fully manual verification
 - Feedback and correction loops between agents, rather than a simple linear pipeline
+- Combining LLM-based reasoning (classification, accounting proposals) with deterministic statistical methods (anomaly detection) where predictability matters more than flexibility
